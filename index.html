@@ -1542,11 +1542,12 @@ function buildChecklist(){
     {ok:!!met, label:'Caminho metodológico descrito', tag:'Obrigatório'},
     {ok:met.length>80, label:'Metodologia propõe atividade no nível cognitivo correto', tag:'Alinhamento'},
     {ok:crits.length>0, label:'Critérios de avaliação definidos', tag:'Obrigatório'},
-    {ok:crits.length>=2, label:'Pelo menos 2 critérios observáveis', tag:'Qualidade'},
+    {ok:(ST.selectedHabList && ST.selectedHabList.length > 1) ? crits.length>=4 : crits.length>=2, label:(ST.selectedHabList && ST.selectedHabList.length > 1) ? 'Pelo menos 4 critérios (múltiplas habilidades)' : 'Pelo menos 2 critérios observáveis', tag:'Qualidade'},
     {ok:!!instr, label:'Instrumento(s) de avaliação selecionado(s)', tag:'Obrigatório'},
     {ok:!!document.getElementById('professor').value.trim(), label:'Nome do professor informado', tag:'Identificação'},
     {ok:!!document.getElementById('turma').value.trim(), label:'Turma / etapa informada', tag:'Identificação'},
     {ok:ST.areas.length>0, label:'Área do conhecimento selecionada', tag:'Identificação'},
+    {ok:(ST.selectedHabList && ST.selectedHabList.length > 0) || ST.currentHab, label:'Pelo menos uma habilidade selecionada', tag:'Obrigatório'},
   ];
   var html='';
   checks.forEach(function(c){
@@ -1606,6 +1607,20 @@ async function callGemini(prompt, modelIdx){
 }
 
 function habInfo(){
+  // Se há múltiplas habilidades selecionadas, retornar informações de todas
+  if(ST.selectedHabList && ST.selectedHabList.length > 0){
+    var allInfo = ST.selectedHabList.map(function(h, i){
+      return '=== HABILIDADE '+(i+1)+' ===\n'+
+             'Código: '+h.cod+'\n'+
+             'Etapa/Ano: '+(h.ano||h.etapa||'Ensino Médio')+'\n'+
+             'Componente: '+(h.comp||'')+'\n'+
+             'Habilidade: '+h.texto+'\n'+
+             'Nível de Bloom: '+h.bloom+' — '+bloomNames[h.bloom]+'\n'+
+             'Verbo: '+h.verbo;
+    }).join('\n\n');
+    return 'Total de habilidades no plano: '+ST.selectedHabList.length+'\n\n'+allInfo;
+  }
+  // Fallback para habilidade única atual
   var h=ST.currentHab;
   if(h)return 'Código: '+h.cod+'\nEtapa/Ano: '+(h.ano||h.etapa||'Ensino Médio')+'\nComponente: '+(h.comp||'')+'\nHabilidade: '+h.texto+'\nNível de Bloom: '+ST.bloomLevel+' — '+bloomNames[ST.bloomLevel]+'\nVerbo: '+h.verbo;
   return 'Código: '+(document.getElementById('codManual').value||'não informado')+'\nHabilidade: '+(document.getElementById('habManual').value||'não informada');
@@ -1615,6 +1630,14 @@ async function analisarIA(){
   var b=document.getElementById('btnIA'),r=document.getElementById('iaResult');
   if(!getHabText()){alert('Selecione ou digite uma habilidade primeiro.');return;}
   b.disabled=true;r.className='ai-result loading';r.innerHTML='<span class="spinner"></span>Analisando...';
+  
+  // Se há múltiplas habilidades, usar a função de análise múltipla
+  if(ST.selectedHabList && ST.selectedHabList.length > 1){
+    await analisarTodasIA();
+    b.disabled=false;
+    return;
+  }
+  
   try{var t=await callGemini('Analise esta habilidade:\n\n'+habInfo()+'\n\nForneça:\n1. Verbos identificados e nível de Bloom confirmado\n2. O que o aluno precisa FAZER (ação cognitiva)\n3. Sobre o quê / com o quê\n4. Para quê (finalidade)\n5. Alertas sobre erros comuns no planejamento desta habilidade\n6. Sugestões de soluções pedagógicas para desenvolver esta habilidade em sala de aula\n\nSeja direto e técnico, oferecendo soluções práticas para o plano.');r.className='ai-result';r.innerHTML=t.replace(/\n/g,'<br>');}
   catch(e){r.className='ai-result loading';r.innerHTML='⚠️ '+e.message;}
   b.disabled=false;
@@ -1663,7 +1686,9 @@ async function sugerirConteudo(){
   try{
     var tema2=document.getElementById('temaGerador').value.trim();
     var turma2=document.getElementById('turma').value.trim();
-    var p=habInfo()+'\nTema gerador: '+(tema2||'não informado')+'\nTurma: '+(turma2||'não informado')+'\n\nSugira 5 a 8 objetos de conhecimento (conteúdos) que sejam MEIOS para o aluno exercer o VERBO desta habilidade.\nPara cada conteúdo:\n- Explique brevemente como ele permite ao aluno exercer o verbo (não apenas o tema).\n- Indique conexões interdisciplinares possíveis com outras áreas/componentes do EM (Língua Portuguesa, História, Matemática, Arte, Filosofia etc.) quando pertinente.\nFormate como lista numerada.';
+    var numHab = ST.selectedHabList && ST.selectedHabList.length > 0 ? ST.selectedHabList.length : 1;
+    var qtdConteudos = numHab >= 2 ? '8 a 12' : '5 a 8';
+    var p=habInfo()+'\nTema gerador: '+(tema2||'não informado')+'\nTurma: '+(turma2||'não informado')+'\n\nSugira '+qtdConteudos+' objetos de conhecimento (conteúdos) que sejam MEIOS para o aluno exercer os VERBOS das habilidades selecionadas.'+(numHab > 1 ? '\n\nIMPORTANTE: Há MÚLTIPLAS HABILIDADES no plano. Os conteúdos devem:\n- Integrar as diferentes habilidades de forma coerente\n- Permitir trabalhar todos os verbos cognitivos presentes\n- Criar conexões entre as áreas/componentes envolvidos\n- Ser organizados em uma progressão que desenvolva gradualmente cada habilidade' : '')+'\n\nPara cada conteúdo:\n- Explique brevemente como ele permite ao aluno exercer o verbo (não apenas o tema).\n- Indique conexões interdisciplinares possíveis com outras áreas/componentes do EM (Língua Portuguesa, História, Matemática, Arte, Filosofia etc.) quando pertinente.\nFormate como lista numerada.';
     var t=await callGemini(p);r.className='ai-result';r.innerHTML=t.replace(/\n/g,'<br>');if(!document.getElementById('conteudo').value)document.getElementById('conteudo').value=t;}
   catch(e){r.className='ai-result loading';r.innerHTML='⚠️ '+e.message;}
   b.disabled=false;
@@ -1678,7 +1703,8 @@ async function sugerirMet(){
   var tema=document.getElementById('temaGerador').value.trim();
   try{
     var metSel=Array.from(document.querySelectorAll('#methodGrid .method-chip.selected')).map(function(e){return e.textContent.trim();}).join(', ');
-    var p=habInfo()+'\nTema gerador: '+(tema||'não informado')+'\nTurma: '+(turma||'não informado')+'\nConteúdo/Objetos de conhecimento: '+(cont||'não especificado')+'\nEstratégias/Metodologias ativas selecionadas: '+(metSel||'não selecionadas')+'\n\nElabore o CAMINHO METODOLÓGICO integrando TODOS os elementos acima.\nEstrutura obrigatória em 3 momentos:\n1. MOMENTO INICIAL (mobilização/ativação): Como engajar o aluno e ativar conhecimentos prévios usando as estratégias selecionadas.\n2. MOMENTO DE DESENVOLVIMENTO: Atividades que EXIJAM do aluno o mesmo nível cognitivo do VERBO da habilidade, usando os conteúdos como meio e as metodologias ativas escolhidas. Seja específico sobre O QUE O ALUNO FAZ.\n3. MOMENTO DE SISTEMATIZAÇÃO: Como consolidar a aprendizagem e verificar se o aluno desenvolveu a habilidade.\nContexto: EJA/Ensino Médio. Máximo 4 parágrafos. Foco no que o ALUNO faz, não no professor.';
+    var numHab = ST.selectedHabList && ST.selectedHabList.length > 0 ? ST.selectedHabList.length : 1;
+    var p=habInfo()+'\nTema gerador: '+(tema||'não informado')+'\nTurma: '+(turma||'não informado')+'\nConteúdo/Objetos de conhecimento: '+(cont||'não especificado')+'\nEstratégias/Metodologias ativas selecionadas: '+(metSel||'não selecionadas')+'\n\nElabore o CAMINHO METODOLÓGICO integrando TODOS os elementos acima.'+(numHab > 1 ? '\n\nIMPORTANTE: Este plano trabalha '+numHab+' habilidades simultaneamente. A metodologia deve:\n- Mostrar como as diferentes habilidades se articulam nas atividades\n- Distribuir o foco entre as habilidades ao longo das aulas\n- Criar atividades integradoras que desenvolvam múltiplas habilidades\n- Explicitar qual habilidade está sendo priorizada em cada momento' : '')+'\n\nEstrutura obrigatória em 3 momentos:\n1. MOMENTO INICIAL (mobilização/ativação): Como engajar o aluno e ativar conhecimentos prévios usando as estratégias selecionadas.\n2. MOMENTO DE DESENVOLVIMENTO: Atividades que EXIJAM do aluno o mesmo nível cognitivo do VERBO da habilidade, usando os conteúdos como meio e as metodologias ativas escolhidas. Seja específico sobre O QUE O ALUNO FAZ.\n3. MOMENTO DE SISTEMATIZAÇÃO: Como consolidar a aprendizagem e verificar se o aluno desenvolveu a habilidade.\nContexto: EJA/Ensino Médio. Máximo 4 parágrafos. Foco no que o ALUNO faz, não no professor.';
     var t=await callGemini(p);r.className='ai-result';r.innerHTML=t.replace(/\n/g,'<br>');if(!document.getElementById('metodologia').value)document.getElementById('metodologia').value=t;}
   catch(e){r.className='ai-result loading';r.innerHTML='⚠️ '+e.message;}
   b.disabled=false;
@@ -1692,8 +1718,10 @@ async function sugerirCrit(){
     var met2=document.getElementById('metodologia').value.trim();
     var cont2=document.getElementById('conteudo').value.trim();
     var instrSel=Array.from(document.querySelectorAll('#instrGrid .method-chip.selected')).map(function(e){return e.textContent.trim();});
+    var numHab = ST.selectedHabList && ST.selectedHabList.length > 0 ? ST.selectedHabList.length : 1;
+    var qtdCrit = numHab >= 2 ? 6 : 4;
     var instrDisp=['Resolução de situações-problema','Produção textual escrita','Apresentação oral','Atividade de análise','Mapa conceitual','Portfólio','Autoavaliação','Prova dissertativa','Rubrica','Observação sistemática','Relatório de atividade','Debate avaliativo'];
-    var p=habInfo()+'\nConteúdos definidos: '+(cont2||'não especificado')+'\nCaminho metodológico: '+(met2||'não descrito')+'\nInstrumentos já selecionados: '+(instrSel.length?instrSel.join(', '):'nenhum')+'\nInstrumentos disponíveis no sistema: '+instrDisp.join(', ')+'\n\nCom base em TUDO acima, elabore:\n\nPARTE 1 — CRITÉRIOS DE AVALIAÇÃO (4 critérios)\nRegras: cada critério começa com verbo derivado do verbo da habilidade, é observável e contempla a AQUISIÇÃO/DESENVOLVIMENTO da habilidade. NUNCA use: "demonstrar progressão", "mostrar envolvimento", "aplicação prática e conexões".\nFormato: verbo na 3ª pessoa do singular. Ex: "Analisa situações do cotidiano identificando fenômenos elétricos".\nRetorne os 4 critérios, um por linha, com prefixo CRIT:.\n\nPARTE 2 — INSTRUMENTOS RECOMENDADOS\nDos instrumentos disponíveis no sistema, indique quais são mais adequados para estes critérios e metodologia. Justifique brevemente cada indicação.\nRetorne com prefixo INSTR:';
+    var p=habInfo()+'\nConteúdos definidos: '+(cont2||'não especificado')+'\nCaminho metodológico: '+(met2||'não descrito')+'\nInstrumentos já selecionados: '+(instrSel.length?instrSel.join(', '):'nenhum')+'\nInstrumentos disponíveis no sistema: '+instrDisp.join(', ')+'\n\nCom base em TUDO acima, elabore:\n\nPARTE 1 — CRITÉRIOS DE AVALIAÇÃO ('+qtdCrit+' critérios)'+(numHab > 1 ? '\nIMPORTANTE: Há MÚLTIPLAS HABILIDADES. Os critérios devem:\n- Contemplar o desenvolvimento de TODAS as habilidades\n- Agrupar verbos relacionados das diferentes habilidades\n- Permitir avaliar a integração entre as habilidades' : '')+'\nRegras: cada critério começa com verbo derivado do verbo da habilidade, é observável e contempla a AQUISIÇÃO/DESENVOLVIMENTO da habilidade. NUNCA use: "demonstrar progressão", "mostrar envolvimento", "aplicação prática e conexões".\nFormato: verbo na 3ª pessoa do singular. Ex: "Analisa situações do cotidiano identificando fenômenos elétricos".\nRetorne os '+qtdCrit+' critérios, um por linha, com prefixo CRIT:.\n\nPARTE 2 — INSTRUMENTOS RECOMENDADOS\nDos instrumentos disponíveis no sistema, indique quais são mais adequados para estes critérios e metodologia. Justifique brevemente cada indicação.\nRetorne com prefixo INSTR:';
     var t=await callGemini(p);
     r.className='ai-result';r.innerHTML=t.replace(/\n/g,'<br>');
     var lines=t.split('\n');
