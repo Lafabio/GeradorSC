@@ -764,10 +764,25 @@ body{background:#e8e5db;background-image:repeating-linear-gradient(0deg,transpar
         <div id="sc-bloom-badge"></div>
       </div>
 
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:.78rem;font-weight:700;color:#5a5240;text-transform:uppercase;letter-spacing:.04em;">🔬 Dissecação da Habilidade</span>
+        <button id="btnDissectIA" onclick="dissectComIA()" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:2px solid #3949ab;background:#eef2ff;color:#3949ab;font-family:'Sora',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='#3949ab';this.style.color='#fff'" onmouseout="this.style.background='#eef2ff';this.style.color='#3949ab'">
+          <span id="dissectBtnIcon">✨</span> Dissectar com IA
+        </button>
+      </div>
       <div class="dissect-grid">
-        <div class="dc verb"><h4>🎯 O que precisa fazer (verbo)</h4><p id="dc-verb">—</p></div>
-        <div class="dc obj"><h4>📚 Com o quê / Sobre o quê</h4><p id="dc-obj">—</p></div>
-        <div class="dc purp"><h4>💡 Para quê (finalidade)</h4><p id="dc-purp">—</p></div>
+        <div class="dc verb">
+          <h4>🎯 O que precisa fazer (verbo)</h4>
+          <p id="dc-verb" style="font-size:.86rem;line-height:1.55;">—</p>
+        </div>
+        <div class="dc obj">
+          <h4>📚 Com o quê / Sobre o quê</h4>
+          <p id="dc-obj" style="font-size:.86rem;line-height:1.55;">—</p>
+        </div>
+        <div class="dc purp">
+          <h4>💡 Para quê (finalidade)</h4>
+          <p id="dc-purp" style="font-size:.86rem;line-height:1.55;">—</p>
+        </div>
       </div>
     </div>
 
@@ -1051,7 +1066,6 @@ function dissecarHabilidade(texto, verboBase) {
   // 1. EXTRAIR VERBO
   var verbo = verboBase || '';
   if (!verbo) {
-    // Lista de verbos comuns na BNCC
     var verbosBNCC = [
       'Participar','Desenvolver','Reconhecer','Demonstrar','Experimentar','Utilizar',
       'Conhecer','Criar','Manipular','Expressar','Comunicar','Identificar','Descrever',
@@ -1059,99 +1073,126 @@ function dissecarHabilidade(texto, verboBase) {
       'Calcular','Construir','Produzir','Elaborar','Avaliar','Julgar','Justificar',
       'Defender','Argumentar','Classificar','Selecionar','Organizar','Planejar',
       'Propor','Investigar','Observar','Registrar','Relatar','Discutir','Refletir',
-      'Posicionar-se','Utilizar','Diferenciar','Relacionar','Representar','Traduzir',
+      'Posicionar-se','Diferenciar','Relacionar','Representar','Traduzir',
       'Generalizar','Verificar','Comprovar','Testar','Medir','Estimar','Prever',
       'Simular','Modelar','Projetar','Sintetizar','Resumir','Parafrasear','Ilustrar',
       'Exemplificar','Categorizar','Inferir','Deduzir','Contrastar','Criticar',
-      'Formular','Levantar','Propor alternativas','Tomar decisões','Colaborar',
-      'Interagir','Respeitar','Valorizar','Apreciar','Fruir','Contextualizar',
-      'Historiar','Mapear','Caracterizar','Nomear','Enumerar','Listar','Memorizar',
-      'Reproduzir','Executar','Implementar','Operar','Praticar','Treinar',
-      'Explorar','Descobrir','Pesquisar','Examinar','Inspecionar','Checar','Validar'
+      'Formular','Levantar','Colaborar','Interagir','Respeitar','Valorizar',
+      'Apreciar','Fruir','Contextualizar','Mapear','Caracterizar','Nomear',
+      'Enumerar','Listar','Memorizar','Reproduzir','Executar','Implementar',
+      'Operar','Praticar','Treinar','Explorar','Descobrir','Pesquisar',
+      'Examinar','Inspecionar','Checar','Validar'
     ];
-    
     for (var i = 0; i < verbosBNCC.length; i++) {
-      if (texto.toLowerCase().indexOf(verbosBNCC[i].toLowerCase()) === 0 || 
-          texto.toLowerCase().indexOf(verbosBNCC[i].toLowerCase() + ' ') === 0) {
-        verbo = verbosBNCC[i];
-        break;
-      }
+      var vb = verbosBNCC[i].toLowerCase();
+      var tx = texto.toLowerCase();
+      if (tx.indexOf(vb) === 0) { verbo = verbosBNCC[i]; break; }
     }
   }
-  
   resultado.verbo = verbo;
-  
-  // 2. EXTRAIR FINALIDADE (propósito)
-  // Procurar conectivos de finalidade
-  var conectivosFinalidade = [
-    { conj: ' para ', tipo: 'para' },
-    { conj: 'a fim de ', tipo: 'aFim' },
-    { conj: 'com o objetivo de ', tipo: 'objetivo' },
-    { conj: 'com a finalidade de ', tipo: 'finalidade' },
-    { conj: 'com intuito de ', tipo: 'intuito' },
-    { conj: ' de modo a ', tipo: 'modo' },
-    { conj: ' de forma a ', tipo: 'forma' },
-    { conj: ' a fim de ', tipo: 'aFim2' }
+
+  // 2. EXTRAIR FINALIDADE — conectivos de propósito
+  var conectivos = [
+    ' para que ', ' para ', ' a fim de ', ' com o objetivo de ',
+    ' com a finalidade de ', ' com intuito de ', ' de modo a ',
+    ' de forma a ', ' visando ', ' visando a ', ' visando à ',
+    ' contribuindo para ', ' contribuindo com ', ' possibilitando ',
+    ' permitindo '
   ];
-  
   var finalidadeExtraida = '';
   var posFinalidade = -1;
-  var conectivoUsado = '';
-  
-  for (var j = 0; j < conectivosFinalidade.length; j++) {
-    var conj = conectivosFinalidade[j];
-    var idx = texto.toLowerCase().indexOf(conj.conj);
-    if (idx > -1) {
+  var tamanhoConj = 0;
+  for (var j = 0; j < conectivos.length; j++) {
+    var conj = conectivos[j];
+    var idx = texto.toLowerCase().indexOf(conj);
+    if (idx > 10) { // não pode ser logo no início
       posFinalidade = idx;
-      conectivoUsado = conj.conj.trim();
-      finalidadeExtraida = texto.substring(idx + conj.conj.length).replace(/\.$/, '').trim();
+      tamanhoConj = conj.length;
+      finalidadeExtraida = texto.substring(idx + conj.length).replace(/\.$/, '').trim();
+      // Capitalizar primeira letra
+      if (finalidadeExtraida.length > 0)
+        finalidadeExtraida = finalidadeExtraida.charAt(0).toUpperCase() + finalidadeExtraida.slice(1);
       break;
     }
   }
-  
-  resultado.finalidade = finalidadeExtraida;
-  
-  // 3. EXTRAIR OBJETO (conteúdo/alvo)
-  // O objeto está entre o verbo e a finalidade
-  var textoSemFinalidade = texto;
-  if (posFinalidade > -1) {
-    textoSemFinalidade = texto.substring(0, posFinalidade).trim();
+
+  // Fallback: se não achou conectivo, tenta pegar cláusula após vírgula+gerúndio
+  if (!finalidadeExtraida) {
+    var gerMatch = texto.match(/,\s*([a-záéíóúâêîôûãõç][a-záéíóúâêîôûãõç]*(?:ando|endo|indo)[^,\.]+(?:[,\.][^,\.]+)*)/i);
+    if (gerMatch) {
+      var gerStart = texto.indexOf(gerMatch[0]);
+      if (gerStart > texto.length * 0.45) { // só se estiver na 2a metade
+        finalidadeExtraida = gerMatch[1].replace(/\.$/, '').trim();
+        finalidadeExtraida = finalidadeExtraida.charAt(0).toUpperCase() + finalidadeExtraida.slice(1);
+        posFinalidade = gerStart;
+        tamanhoConj = gerMatch[0].length - gerMatch[1].length;
+      }
+    }
   }
-  
-  // Remover o verbo do início para isolar o objeto
-  var objetoExtraido = textoSemFinalidade;
+  resultado.finalidade = finalidadeExtraida || '—';
+
+  // 3. EXTRAIR OBJETO — o que fica entre verbo e finalidade
+  var textoMeio = posFinalidade > -1 ? texto.substring(0, posFinalidade).trim() : texto.trim();
+  textoMeio = textoMeio.replace(/\.$/, '').trim();
+  var objetoExtraido = textoMeio;
   if (verbo) {
-    var verboIdx = objetoExtraido.toLowerCase().indexOf(verbo.toLowerCase());
-    if (verboIdx === 0) {
+    var vi = objetoExtraido.toLowerCase().indexOf(verbo.toLowerCase());
+    if (vi === 0) {
       objetoExtraido = objetoExtraido.substring(verbo.length).trim();
-    }
-    // Remover vírgula inicial se existir
-    if (objetoExtraido.indexOf(',') === 0) {
-      objetoExtraido = objetoExtraido.substring(1).trim();
+      // Remover pontuação inicial (vírgula, dois-pontos, etc.)
+      objetoExtraido = objetoExtraido.replace(/^[,;:\s]+/, '').trim();
     }
   }
-  
-  resultado.objeto = objetoExtraido;
-  
-  // 4. CRIAR TEXTO COM DESTAQUES
-  var textoDestacado = texto;
-  
-  // Destacar verbo
+  // Limitar a 200 chars para não ficar gigante
+  if (objetoExtraido.length > 200) objetoExtraido = objetoExtraido.substring(0, 200) + '…';
+  resultado.objeto = objetoExtraido || '—';
+
+  // 4. TEXTO COM DESTAQUES
+  var textoHL = texto;
   if (verbo) {
-    var reVerbo = new RegExp('(' + verbo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i');
-    textoDestacado = textoDestacado.replace(reVerbo, '<span class="verb-hl">$1</span>');
+    var reV = new RegExp('(' + verbo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i');
+    textoHL = textoHL.replace(reV, '<span class="verb-hl">$1</span>');
   }
-  
-  // Destacar finalidade
   if (posFinalidade > -1) {
-    var parteFinalidade = texto.substring(posFinalidade);
-    textoDestacado = textoDestacado.replace(parteFinalidade, '<span class="purp-hl">' + parteFinalidade + '</span>');
+    var parteFin = texto.substring(posFinalidade);
+    textoHL = textoHL.replace(parteFin, '<span class="purp-hl">' + parteFin + '</span>');
   }
-  
-  resultado.textoDestacado = textoDestacado;
-  
+  resultado.textoDestacado = textoHL;
   return resultado;
 }
+
+// ===== DISSECTAR COM IA =====
+async function dissectComIA() {
+  var habTxt = getHabText();
+  if (!habTxt) { alert('Selecione ou digite uma habilidade primeiro.'); return; }
+  var btn = document.getElementById('btnDissectIA');
+  var ico = document.getElementById('dissectBtnIcon');
+  btn.disabled = true;
+  ico.textContent = '⏳';
+  document.getElementById('dc-verb').innerHTML = '<span class="spinner"></span>';
+  document.getElementById('dc-obj').innerHTML  = '<span class="spinner"></span>';
+  document.getElementById('dc-purp').innerHTML = '<span class="spinner"></span>';
+  var prompt = 'Analise a habilidade BNCC/CBTC abaixo e a divida em EXATAMENTE 3 partes.\n\nHabilidade: ' + habTxt + '\n\nResponda SOMENTE neste formato JSON, sem markdown, sem texto extra:\n{\n  "verbo": "verbo principal + contexto da ação cognitiva exigida (ex: Analisar — comparando características de diferentes biomas)",\n  "objeto": "o conteúdo / tema / conceito sobre o qual o verbo é aplicado (o quê / com o quê / sobre o quê)",\n  "finalidade": "o propósito ou resultado esperado da ação (para quê serve aprender isso — se não houver conectivo explícito, infira pelo contexto)"\n}\n\nRegras:\n- Cada campo deve ter 1-2 frases objetivas.\n- Se a habilidade não tiver finalidade explícita, infira pelo contexto educacional.\n- Responda em português do Brasil.';
+  try {
+    var raw = await callGemini(prompt);
+    // Remover possíveis blocos de markdown
+    var clean = raw.replace(/```json|```/g, '').trim();
+    var parsed = JSON.parse(clean);
+    document.getElementById('dc-verb').textContent = parsed.verbo  || '—';
+    document.getElementById('dc-obj').textContent  = parsed.objeto || '—';
+    document.getElementById('dc-purp').textContent = parsed.finalidade || '—';
+  } catch(e) {
+    // Fallback para extração local
+    var fb = dissecarHabilidade(habTxt, ST.currentHab ? ST.currentHab.verbo : '');
+    document.getElementById('dc-verb').textContent = fb.verbo  || '—';
+    document.getElementById('dc-obj').textContent  = fb.objeto || '—';
+    document.getElementById('dc-purp').textContent = fb.finalidade || '—';
+    console.warn('Dissecção IA falhou, usando extração local:', e.message);
+  }
+  btn.disabled = false;
+  ico.textContent = '✨';
+}
+
 
 function selectSkill(cod){
   var h = HABILIDADES_DB.find(function(x){return x.cod===cod;});
