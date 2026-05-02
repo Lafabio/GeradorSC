@@ -64,6 +64,15 @@ body{background:#e8e5db;background-image:repeating-linear-gradient(0deg,transpar
 .hab-item-btn{background:none;border:none;cursor:pointer;font-size:.75rem;padding:4px 8px;border-radius:4px;font-weight:600;transition:all .15s;}
 .hab-item-btn.view{color:#2980b9;} .hab-item-btn.view:hover{background:#e8f2fb;}
 .hab-item-btn.remove{color:#c0392b;} .hab-item-btn.remove:hover{background:#fde8e8;}
+.hab-counter{background:var(--accent);color:#fff;padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:700;display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;box-shadow:0 2px 8px rgba(26,82,118,.2);}
+.hab-counter span{font-size:1.1rem;}
+.seq-card{background:#f8f9fa;border:2px solid var(--border);border-radius:8px;padding:14px 16px;margin-top:12px;}
+.seq-card h4{font-size:.85rem;font-weight:700;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.seq-item{background:#fff;border-left:4px solid var(--accent2);padding:10px 12px;margin-bottom:8px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
+.seq-item h5{font-size:.8rem;font-weight:700;color:var(--accent2);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.seq-item .seq-cod{font-family:monospace;font-size:.75rem;background:#e8f8ee;padding:2px 6px;border-radius:4px;}
+.seq-item p{font-size:.8rem;color:#555;line-height:1.6;margin-bottom:6px;}
+.seq-item ul{font-size:.78rem;color:#666;margin-left:18px;line-height:1.7;}
 .verb-hl{background:#fde8e8;color:#c0392b;font-weight:700;border-radius:3px;padding:1px 4px;}
 .obj-hl{background:#e8f2fb;color:#1a5276;border-radius:3px;padding:1px 4px;}
 .purp-hl{background:#e8f8ee;color:#1e8449;border-radius:3px;padding:1px 4px;}
@@ -764,14 +773,29 @@ body{background:#e8e5db;background-image:repeating-linear-gradient(0deg,transpar
 
     <div id="selectedSkillWrap" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <span style="font-size:.85rem;font-weight:700;color:#5a5240;text-transform:uppercase;letter-spacing:.04em;">📋 Habilidades Selecionadas (<span id="habCount">1</span>)</span>
+        <div class="hab-counter">
+          🎯 <span id="habCount">0</span> habilidade(s) no plano
+        </div>
         <button onclick="addAllToAnalysis()" id="btnAnalyzeAll" style="display:none;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:2px solid #27ae60;background:#e8f8ee;color:#27ae60;font-family:'Sora',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='#27ae60';this.style.color='#fff'" onmouseout="this.style.background='#e8f8ee';this.style.color='#27ae60'">
           ✨ Analisar Todas com IA
         </button>
       </div>
       
+      <!-- Contador detalhado -->
+      <div style="font-size:.8rem;color:#666;margin-bottom:10px;">
+        ℹ️ O plano pode ser usado por até <strong>30 dias</strong> ou <strong>15 aulas</strong>. Adicione múltiplas habilidades para criar uma sequência didática integrada.
+      </div>
+      
       <!-- Lista de habilidades selecionadas -->
       <div id="selectedHabList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
+      
+      <!-- Sequência Didática Gerada -->
+      <div id="sequenciaDidatica" style="display:none;">
+        <div class="seq-card">
+          <h4>📚 Sequência Didática — Plano Integrado</h4>
+          <div id="seqContent"></div>
+        </div>
+      </div>
       
       <!-- Card da habilidade atual em foco -->
       <div class="selected-skill-card">
@@ -1272,6 +1296,9 @@ function addCurrentToList(){
   // Atualizar UI da lista
   renderHabList();
   
+  // Gerar sequência didática automaticamente
+  gerarSequenciaDidatica();
+  
   // Esconder botão de adicionar
   document.getElementById('btnAddToList').style.display = 'none';
 }
@@ -1281,6 +1308,7 @@ function renderHabList(){
   var container = document.getElementById('selectedHabList');
   var countSpan = document.getElementById('habCount');
   var btnAll = document.getElementById('btnAnalyzeAll');
+  var seqDiv = document.getElementById('sequenciaDidatica');
   
   container.innerHTML = '';
   countSpan.textContent = ST.selectedHabList.length;
@@ -1289,6 +1317,7 @@ function renderHabList(){
     btnAll.style.display = 'flex';
   } else {
     btnAll.style.display = 'none';
+    seqDiv.style.display = 'none';
   }
   
   ST.selectedHabList.forEach(function(hab, idx){
@@ -1303,6 +1332,49 @@ function renderHabList(){
       '</div>';
     container.appendChild(item);
   });
+}
+
+// Gerar sequência didática baseada nas habilidades
+function gerarSequenciaDidatica(){
+  if(ST.selectedHabList.length === 0) return;
+  
+  var seqDiv = document.getElementById('sequenciaDidatica');
+  var seqContent = document.getElementById('seqContent');
+  
+  // Calcular distribuição de aulas (máx 15 aulas / 30 dias)
+  var totalAulas = Math.min(15, ST.selectedHabList.length * 3);
+  var aulasPorHab = Math.floor(totalAulas / ST.selectedHabList.length);
+  var resto = totalAulas % ST.selectedHabList.length;
+  
+  var html = '';
+  var aulaAtual = 1;
+  
+  ST.selectedHabList.forEach(function(hab, idx){
+    var aulasEsta = aulasPorHab + (idx < resto ? 1 : 0);
+    
+    html += '<div class="seq-item">';
+    html += '<h5><span class="seq-cod">'+esc(hab.cod)+'</span> Habilidade '+(idx+1)+' — '+aulasEsta+' aula(s)</h5>';
+    html += '<p><strong>Verbo:</strong> '+esc(hab.verbo)+' | <strong>Bloom Nível '+hab.bloom+':</strong> '+bloomNames[hab.bloom]+'</p>';
+    html += '<p><strong>Texto:</strong> '+esc(hab.texto)+'</p>';
+    html += '<ul>';
+    html += '<li><strong>Aula '+aulaAtual+':</strong> Apresentação e mobilização — contextualizar a habilidade, ativar conhecimentos prévios.</li>';
+    if(aulasEsta > 1){
+      html += '<li><strong>Aulas '+(aulaAtual+1)+'-'+(aulaAtual+aulasEsta-1)+':</strong> Desenvolvimento — atividades práticas que exigem o verbo "'+esc(hab.verbo)+'", com metodologias ativas.</li>';
+    }
+    html += '<li><strong>Aula '+(aulaAtual+aulasEsta-1)+':</strong> Sistematização e avaliação — consolidar aprendizagem e verificar desenvolvimento da habilidade.</li>';
+    html += '</ul>';
+    html += '</div>';
+    
+    aulaAtual += aulasEsta;
+  });
+  
+  html += '<div style="margin-top:12px;padding:10px;background:#fff3cd;border-left:4px solid #f39c12;border-radius:4px;">';
+  html += '<p style="font-size:.8rem;margin:0;"><strong>⏱ Distribuição:</strong> Total de '+totalAulas+' aulas distribuídas em até 30 dias. ';
+  html += 'Cada habilidade recebe foco específico, mas todas se integram na sequência didática do plano.</p>';
+  html += '</div>';
+  
+  seqContent.innerHTML = html;
+  seqDiv.style.display = 'block';
 }
 
 // Visualizar habilidade da lista
@@ -1342,6 +1414,11 @@ function removeHab(idx){
   } else if(ST.currentHab && ST.selectedHabList.length > 0){
     // Selecionar a primeira habilidade da lista
     viewHab(0);
+  }
+  
+  // Regenerar sequência se ainda houver habilidades
+  if(ST.selectedHabList.length > 0){
+    gerarSequenciaDidatica();
   }
 }
 
@@ -1413,6 +1490,13 @@ function openTab(id){
 
 // ===== PREVIEW =====
 function getHabText(){
+  if(ST.selectedHabList && ST.selectedHabList.length > 0){
+    // Se há múltiplas habilidades, retornar todas
+    return ST.selectedHabList.map(function(h){
+      var cod = h.cod ? '('+h.cod+') ' : '';
+      return cod + (h.texto || '');
+    }).join('\n\n');
+  }
   if(ST.currentHab){
     var cod=ST.currentHab.cod?'('+ST.currentHab.cod+') ':'';
     return cod+(ST.currentHab.texto||'');
@@ -1561,6 +1645,9 @@ async function analisarTodasIA(){
     var t=await callGemini(prompt);
     r.className='ai-result';
     r.innerHTML=t.replace(/\n/g,'<br>');
+    
+    // Gerar sequência didática automaticamente após análise
+    gerarSequenciaDidatica();
   }
   catch(e){
     r.className='ai-result loading';
@@ -1676,6 +1763,8 @@ function restaurarEstado(s){
   // Restaurar lista de habilidades selecionadas
   if(ST.selectedHabList.length > 0){
     renderHabList();
+    // Regenerar sequência didática se houver habilidades salvas
+    setTimeout(gerarSequenciaDidatica, 100);
   }
   // Bloom
   if(s.bloomLevel)selectBloom(s.bloomLevel);
